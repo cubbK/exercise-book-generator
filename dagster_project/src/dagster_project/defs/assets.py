@@ -1,5 +1,2 @@
-import dagster as dg
+# Assets are defined in per-layer modules: bronze.py, silver.py, gold.py
 
-
-@dg.asset
-def assets(context: dg.AssetExecutionContext) -> dg.MaterializeResult: ...
