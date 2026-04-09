@@ -38,15 +38,12 @@ EPUB Files (GCS)
 
 ### Phase 2 — Silver: EPUB Parsing Pipeline
 
-**Goal**: Parse EPUBs into clean, structured relational tables.
-
-**Step 4** — Add **ebooklib + lxml + BeautifulSoup4** (already in deps) for EPUB parsing
+**Goal**: Parse EPUBs into clean, structured relational tables using the epub spline. extract chapters is the most important
 
 **Step 5** — Silver assets (Dagster, partitioned by `file_id`):
 
 - `silver.books` — title, author, language, ISBN, publication year, storage_path
-- `silver.chapters` — book_id, chapter_order, title, raw_html
-- `silver.paragraphs` — chapter_id, paragraph_order, text, word_count, language_code, sentence_count
+- `silver.chapters` — book_id, chapter_order, title, raw_text
 
 Use **Polars** (faster than Pandas, columnar) for all DataFrame transformations.
 

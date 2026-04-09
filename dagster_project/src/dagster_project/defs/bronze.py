@@ -6,8 +6,9 @@ Polls a GCS bucket for EPUB files and registers new ones in BigQuery
 re-uploading the same file produces no new rows.
 
 Required environment variables:
-    GCS_EPUB_BUCKET   — name of the GCS bucket containing raw EPUBs
-    GCP_PROJECT       — Google Cloud project ID (used by BigQueryStorage)
+    GCP_PROJECT       — Google Cloud project ID (via GCSObjectStoreResource / BigQueryStorage)
+    GCS_EPUB_BUCKET   — GCS bucket name (via GCSObjectStoreResource)
+    BIGQUERY_DATASET  — BigQuery dataset name (optional, default: ``exercise_book``)
 """
 
 from __future__ import annotations
@@ -15,13 +16,13 @@ from dotenv import load_dotenv
 
 
 import hashlib
-import os
 import uuid
 from datetime import datetime, timezone
 
 import pandas as pd
 from dagster import asset, get_dagster_logger
 
+from dagster_project.resources.object_store import GCSObjectStoreResource
 from dagster_project.resources.storage import BigQueryStorage
 
 
@@ -51,18 +52,14 @@ FROM `{project}.{dataset}.epub_registry`
         "BigQuery bronze.epub_registry. Idempotent via SHA-256 deduplication."
     ),
 )
-def epub_registry(storage: BigQueryStorage) -> None:
-    from google.cloud import storage as gcs
-
+def epub_registry(storage: BigQueryStorage, gcs: GCSObjectStoreResource) -> None:
     logger = get_dagster_logger()
-    bucket_name = os.environ["GCS_EPUB_BUCKET"]
-
-    bq = storage._client()
 
     # Ensure destination table exists
-    bq.query(
-        _CREATE_TABLE.format(project=storage.project, dataset=storage.dataset)
-    ).result()
+    with storage.get_client() as bq:
+        bq.query(
+            _CREATE_TABLE.format(project=storage.project, dataset=storage.dataset)
+        ).result()
 
     # Fetch hashes already registered so we can skip duplicates
     existing_hashes: set[str] = {
@@ -73,14 +70,12 @@ def epub_registry(storage: BigQueryStorage) -> None:
     }
     logger.info(f"{len(existing_hashes)} EPUB(s) already registered")
 
-    gcs_client = gcs.Client(project=storage.project)
-    bucket = gcs_client.bucket(bucket_name)
-    epub_blobs = [b for b in bucket.list_blobs() if b.name.lower().endswith(".epub")]
-    logger.info(f"Found {len(epub_blobs)} EPUB(s) in gs://{bucket_name}")
+    epub_blobs = gcs.list_epubs()
+    logger.info(f"Found {len(epub_blobs)} EPUB(s) in gs://{gcs.bucket}")
 
     new_rows: list[dict] = []
     for blob in epub_blobs:
-        data = blob.download_as_bytes()
+        data = gcs.download_bytes(blob.name)
         sha256 = hashlib.sha256(data).hexdigest()
 
         if sha256 in existing_hashes:
@@ -91,7 +86,7 @@ def epub_registry(storage: BigQueryStorage) -> None:
             {
                 "file_id": str(uuid.uuid4()),
                 "filename": blob.name.split("/")[-1],
-                "storage_path": f"gs://{bucket_name}/{blob.name}",
+                "storage_path": f"gs://{gcs.bucket}/{blob.name}",
                 "sha256_hash": sha256,
                 "uploaded_at": datetime.now(timezone.utc),
                 "status": "registered",
