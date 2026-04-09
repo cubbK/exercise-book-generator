@@ -4,10 +4,15 @@ requires-python = ">=3.10,<3.15"
 version = "0.1.0"
 dependencies = [
     "dagster==1.12.20",
-    "duckdb>=1.5.1",
+    "dagster-gcp>=0.25.0",
+    "google-cloud-bigquery>=3.0.0",
+    "google-cloud-storage>=2.0.0",
     "pandas>=2.3.3",
+    "db-dtypes>=1.0.0",
     "feedparser>=6.0.11",
     "beautifulsoup4>=4.12.0",
+    "langdetect>=1.0.9",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]

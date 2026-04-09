@@ -1,58 +1,36 @@
 """
-Storage abstraction layer.
-
-Phase 1: DuckDBStorage — local .duckdb file.
-Phase 2: BigQueryStorage — swap in without changing assets.
+Storage layer — BigQuery backend.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 from dagster import ConfigurableResource
-
-
-class DuckDBStorage(ConfigurableResource):
-    """Local DuckDB storage backend for Phase 1."""
-
-    duckdb_path: str = "data/exercise_book.duckdb"
-
-    def _connect(self):
-        import duckdb
-
-        Path(self.duckdb_path).parent.mkdir(parents=True, exist_ok=True)
-        return duckdb.connect(self.duckdb_path)
-
-    def execute(self, sql: str) -> list:
-        """Run a SQL statement and return all rows as a list of tuples."""
-        with self._connect() as con:
-            return con.execute(sql).fetchall()
-
-    def write_df(self, table: str, df: pd.DataFrame) -> None:
-        """Append a DataFrame to a DuckDB table, creating it if it doesn't exist."""
-        with self._connect() as con:
-            con.register("_staging", df)
-            con.execute(
-                f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM _staging LIMIT 0"
-            )
-            con.execute(f"INSERT INTO {table} SELECT * FROM _staging")
+from google.cloud import bigquery
 
 
 class BigQueryStorage(ConfigurableResource):
-    """Phase 2 stub — BigQuery storage backend. Not yet implemented."""
+    """BigQuery storage backend."""
 
-    project: str = ""
-    dataset: str = ""
+    project: str
+    dataset: str = "exercise_book"
 
-    def execute(self, sql: str) -> list:
-        raise NotImplementedError(
-            "BigQueryStorage is a Phase 2 stub. "
-            "Set ENVIRONMENT=local to use DuckDBStorage."
-        )
+    def _client(self) -> bigquery.Client:
+        return bigquery.Client(project=self.project)
+
+    def execute(self, sql: str) -> list[dict]:
+        """Run a SQL query and return all rows as a list of dicts."""
+        client = self._client()
+        result = client.query(sql).result()
+        return [dict(row) for row in result]
 
     def write_df(self, table: str, df: pd.DataFrame) -> None:
-        raise NotImplementedError(
-            "BigQueryStorage is a Phase 2 stub. "
-            "Set ENVIRONMENT=local to use DuckDBStorage."
+        """Append a DataFrame to a BigQuery table (dataset.table format or bare name)."""
+        client = self._client()
+        destination = table if "." in table else f"{self.dataset}.{table}"
+        full_ref = f"{self.project}.{destination}"
+        job_config = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            autodetect=True,
         )
+        client.load_table_from_dataframe(df, full_ref, job_config=job_config).result()

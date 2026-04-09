@@ -1,97 +1,106 @@
 """
-Bronze asset: RSS → raw storage.
+Bronze layer — raw EPUB file registry.
 
-Fetches RSS feeds from Swedish news sources and stores raw articles as JSON.
-This layer is immutable — even malformed articles are kept.
+Polls a GCS bucket for EPUB files and registers new ones in BigQuery
+`bronze.epub_registry`. Uses SHA-256 hashing for idempotent deduplication:
+re-uploading the same file produces no new rows.
+
+Required environment variables:
+    GCS_EPUB_BUCKET   — name of the GCS bucket containing raw EPUBs
+    GCP_PROJECT       — Google Cloud project ID (used by BigQueryStorage)
 """
 
+from __future__ import annotations
+from dotenv import load_dotenv
+
+
 import hashlib
-import json
-from datetime import datetime
-from pathlib import Path
+import os
+import uuid
+from datetime import datetime, timezone
 
-import feedparser
-from dagster import (
-    AssetExecutionContext,
-    DailyPartitionsDefinition,
-    Output,
-    asset,
+import pandas as pd
+from dagster import asset, get_dagster_logger
+
+from dagster_project.resources.storage import BigQueryStorage
+
+
+load_dotenv()  # reads variables from a .env file and sets them in os.environ
+
+_CREATE_TABLE = """
+CREATE TABLE IF NOT EXISTS `{project}.{dataset}.epub_registry` (
+    file_id       STRING    NOT NULL,
+    filename      STRING    NOT NULL,
+    storage_path  STRING    NOT NULL,
+    sha256_hash   STRING    NOT NULL,
+    uploaded_at   TIMESTAMP NOT NULL,
+    status        STRING    NOT NULL
 )
+"""
 
-RSS_SOURCES = {
-    "svt": "https://www.svt.se/nyheter/rss.xml",
-    "dn": "https://www.dn.se/rss/",
-    "aftonbladet": "https://rss.aftonbladet.se/rss2/small/pages/sections/senastenytt/",
-}
-
-daily_partitions = DailyPartitionsDefinition(start_date="2026-04-01", end_offset=1)
+_EXISTING_HASHES = """
+SELECT sha256_hash
+FROM `{project}.{dataset}.epub_registry`
+"""
 
 
 @asset(
-    partitions_def=daily_partitions,
     group_name="bronze",
-    description="Fetch raw RSS articles from Swedish news sources and store as JSON.",
+    description=(
+        "Polls GCS for new EPUB files and registers metadata in "
+        "BigQuery bronze.epub_registry. Idempotent via SHA-256 deduplication."
+    ),
 )
-def rss_raw_articles(context: AssetExecutionContext) -> Output:
-    """
-    Fetches RSS feeds for each configured source and writes raw items to
-    data/bronze/{source}/{partition_date}.json.
+def epub_registry(storage: BigQueryStorage) -> None:
+    from google.cloud import storage as gcs
 
-    Returns a summary dict with counts per source.
-    """
-    partition_date = context.partition_key  # "YYYY-MM-DD"
+    logger = get_dagster_logger()
+    bucket_name = os.environ["GCS_EPUB_BUCKET"]
 
-    all_items: list[dict] = []
-    items_per_source: dict[str, int] = {}
+    bq = storage._client()
 
-    for source_name, feed_url in RSS_SOURCES.items():
-        context.log.info(f"Fetching feed: {source_name} ({feed_url})")
-        feed = feedparser.parse(feed_url)
+    # Ensure destination table exists
+    bq.query(
+        _CREATE_TABLE.format(project=storage.project, dataset=storage.dataset)
+    ).result()
 
-        raw_items = []
-        for entry in feed.entries:
-            raw_item = {
-                "source": source_name,
-                "partition_date": partition_date,
-                "ingested_at": datetime.utcnow().isoformat(),
-                "url": getattr(entry, "link", None),
-                "title": getattr(entry, "title", None),
-                "summary": getattr(entry, "summary", None),
-                "published": getattr(entry, "published", None),
-                # Store the raw content blob if present (may be HTML)
-                "content_raw": (
-                    entry.content[0].value
-                    if hasattr(entry, "content") and entry.content
-                    else None
-                ),
-                # Stable dedup key: SHA-256 of URL
-                "url_hash": (
-                    hashlib.sha256(entry.link.encode()).hexdigest()  # type: ignore
-                    if hasattr(entry, "link") and entry.link
-                    else None
-                ),
-            }
-            raw_items.append(raw_item)
-
-        output_path = Path("data") / "bronze" / source_name / f"{partition_date}.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with output_path.open("w", encoding="utf-8") as f:
-            json.dump(raw_items, f, ensure_ascii=False, indent=2)
-
-        context.log.info(
-            f"Wrote {len(raw_items)} raw items for source '{source_name}' → {output_path}"
+    # Fetch hashes already registered so we can skip duplicates
+    existing_hashes: set[str] = {
+        row["sha256_hash"]
+        for row in storage.execute(
+            _EXISTING_HASHES.format(project=storage.project, dataset=storage.dataset)
         )
-        items_per_source[source_name] = len(raw_items)
-        all_items.extend(raw_items)
+    }
+    logger.info(f"{len(existing_hashes)} EPUB(s) already registered")
 
-    total = sum(items_per_source.values())
-    context.log.info(f"Bronze ingestion complete. Total raw articles: {total}")
+    gcs_client = gcs.Client(project=storage.project)
+    bucket = gcs_client.bucket(bucket_name)
+    epub_blobs = [b for b in bucket.list_blobs() if b.name.lower().endswith(".epub")]
+    logger.info(f"Found {len(epub_blobs)} EPUB(s) in gs://{bucket_name}")
 
-    return Output(
-        value={"partition_date": partition_date, "items_per_source": items_per_source},
-        metadata={
-            "num_articles": total,
-            "sources": list(RSS_SOURCES.keys()),
-            "items_per_source": str(items_per_source),
-        },
-    )
+    new_rows: list[dict] = []
+    for blob in epub_blobs:
+        data = blob.download_as_bytes()
+        sha256 = hashlib.sha256(data).hexdigest()
+
+        if sha256 in existing_hashes:
+            logger.info(f"Skipping {blob.name!r} — already registered")
+            continue
+
+        new_rows.append(
+            {
+                "file_id": str(uuid.uuid4()),
+                "filename": blob.name.split("/")[-1],
+                "storage_path": f"gs://{bucket_name}/{blob.name}",
+                "sha256_hash": sha256,
+                "uploaded_at": datetime.now(timezone.utc),
+                "status": "registered",
+            }
+        )
+        logger.info(f"Queued for registration: {blob.name!r}")
+
+    if new_rows:
+        storage.write_df("epub_registry", pd.DataFrame(new_rows))
+        logger.info(f"Registered {len(new_rows)} new EPUB(s)")
+    else:
+        logger.info("No new EPUBs — nothing to register")
