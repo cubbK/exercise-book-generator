@@ -16,6 +16,7 @@ dependencies = [
     "ebooklib>=0.18",
     "lxml>=5.0.0",
     "polars>=1.0.0",
+    "html2text>=2024.2.26",
 ]
 
 [dependency-groups]

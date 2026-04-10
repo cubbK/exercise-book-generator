@@ -103,12 +103,14 @@ def parse_epub_silver(
     logger = get_dagster_logger()
     _ensure_silver_tables(storage)
 
-    # Fetch EPUBs registered in bronze but not yet parsed
+    # Fetch only EPUBs not yet present in silver.books (single anti-join query)
     registered = storage.execute(
         f"""
-        SELECT file_id, filename, storage_path
-        FROM `{storage.project}.{storage.dataset}.epub_registry`
-        WHERE status = 'registered'
+        SELECT r.file_id, r.filename, r.storage_path
+        FROM `{storage.project}.{storage.dataset}.epub_registry` AS r
+        LEFT JOIN `{storage.project}.{SILVER_DATASET}.books` AS b
+          USING (file_id)
+        WHERE b.file_id IS NULL
         """
     )
     logger.info(f"{len(registered)} EPUB(s) pending silver parse")
@@ -117,25 +119,12 @@ def parse_epub_silver(
         logger.info("Nothing to parse — silver tables already up to date")
         return
 
-    # Fetch existing book file_ids to avoid duplicates on re-run
-    existing_file_ids: set[str] = {
-        row["file_id"]
-        for row in storage.execute(
-            f"SELECT file_id FROM `{storage.project}.{SILVER_DATASET}.books`"
-        )
-    }
-
     book_rows: list[dict] = []
     chapter_rows: list[dict] = []
-    processed_file_ids: list[str] = []
 
     for entry in registered:
         file_id: str = entry["file_id"]
         storage_path: str = entry["storage_path"]
-
-        if file_id in existing_file_ids:
-            logger.info(f"Skipping {entry['filename']!r} — already in silver.books")
-            continue
 
         # Derive blob name: gs://bucket/blob_name → blob_name
         blob_name = "/".join(storage_path.split("/")[3:])
@@ -182,7 +171,6 @@ def parse_epub_silver(
                 }
             )
 
-        processed_file_ids.append(file_id)
         logger.info(f"Parsed {entry['filename']!r}: {len(parsed.chapters)} chapter(s)")
 
     if book_rows:
@@ -196,15 +184,3 @@ def parse_epub_silver(
         logger.info(
             f"Wrote {len(chapter_rows)} chapter(s) to {SILVER_DATASET}.chapters"
         )
-
-    # Mark processed files as 'silver_parsed' in the registry
-    if processed_file_ids:
-        ids_literal = ", ".join(f"'{fid}'" for fid in processed_file_ids)
-        with storage.get_client() as bq:
-            bq.query(
-                f"""
-                UPDATE `{storage.project}.{storage.dataset}.epub_registry`
-                SET status = 'silver_parsed'
-                WHERE file_id IN ({ids_literal})
-                """
-            ).result()
