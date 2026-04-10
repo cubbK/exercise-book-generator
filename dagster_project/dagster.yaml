@@ -1,0 +1,8 @@
+# Dagster instance configuration.
+# Pins the run / event-log storage to a stable local directory so that
+# materialization history survives across `dg dev` restarts.
+# See: https://docs.dagster.io/deployment/dagster-instance
+
+storage:
+  sqlite:
+    base_dir: .dagster_home

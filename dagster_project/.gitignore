@@ -191,6 +191,10 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Dagster local instance storage (run history, event log)
+.dagster_home/
+.tmp_dagster_home*/
+
 # PyPI configuration file
 .pypirc
 
