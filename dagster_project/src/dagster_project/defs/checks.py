@@ -25,7 +25,7 @@ from dagster import AssetCheckResult, asset_check
 
 from dagster_project.resources.storage import BigQueryStorage
 
-_BRONZE = "exercise_book"
+_BRONZE = "exercise_book_bronze"
 _SILVER = "exercise_book_silver"
 
 # ---------------------------------------------------------------------------

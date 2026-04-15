@@ -31,12 +31,16 @@ class BigQueryStorage(BigQueryResource):
     def write_df(self, table: str, df: pd.DataFrame) -> None:
         """Append a DataFrame to a BigQuery table (dataset.table or bare name)."""
         destination = table if "." in table else f"{self.dataset}.{table}"
+        dataset_id = destination.split(".")[0]
         full_ref = f"{self.project}.{destination}"
         job_config = bigquery.LoadJobConfig(
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
             autodetect=True,
         )
         with self.get_client() as client:
+            ds = bigquery.Dataset(f"{self.project}.{dataset_id}")
+            ds.location = self.location
+            client.create_dataset(ds, exists_ok=True)
             client.load_table_from_dataframe(
                 df, full_ref, job_config=job_config
             ).result()

@@ -22,3 +22,6 @@ models:
     bronze:
       +materialized: incremental
       +schema: bronze
+      +meta:
+        dagster:
+          group: bronze

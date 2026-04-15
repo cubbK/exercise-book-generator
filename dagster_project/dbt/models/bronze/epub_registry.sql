@@ -1,5 +1,4 @@
-{
-{
+{{
     config
 (
         materialized='incremental',
@@ -15,12 +14,10 @@ SELECT
     sha256_hash,
     uploaded_at,
     status
-FROM {{ source
-('bronze_raw', 'epub_registry_raw') }}
+FROM {{ source('bronze_raw', 'epub_registry_raw') }}
 
-{%
-if is_incremental() %}
-  WHERE sha256_hash NOT IN
-(SELECT sha256_hash
-FROM {{ this }})
+{% if is_incremental() %}
+WHERE sha256_hash NOT IN (SELECT sha256_hash FROM {{ this }})
 {% endif %}
+
+QUALIFY ROW_NUMBER() OVER (PARTITION BY sha256_hash ORDER BY uploaded_at ASC) = 1

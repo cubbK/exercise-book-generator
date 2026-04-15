@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 
 from dagster import Definitions, definitions, load_from_defs_folder
+from dagster_dbt import DbtCliResource
 
+from dagster_project.defs.dbt import dbt_project
 from dagster_project.resources.object_store import GCSObjectStoreResource
 from dagster_project.resources.storage import BigQueryStorage
 
@@ -14,6 +16,7 @@ def defs():
     storage = BigQueryStorage(
         project=os.environ["GCP_PROJECT"],
         dataset=os.getenv("BIGQUERY_DATASET", "exercise_book"),
+        location=os.getenv("BIGQUERY_LOCATION", "EU"),
     )
 
     gcs = GCSObjectStoreResource(
@@ -21,7 +24,9 @@ def defs():
         bucket=os.environ["GCS_EPUB_BUCKET"],
     )
 
+    dbt = DbtCliResource(project_dir=os.fspath(dbt_project.project_dir))
+
     return Definitions.merge(
         loaded,
-        Definitions(resources={"storage": storage, "gcs": gcs}),
+        Definitions(resources={"storage": storage, "gcs": gcs, "dbt": dbt}),
     )

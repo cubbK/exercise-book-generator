@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: epub_registry
+    description: >
+      Deduplicated EPUB registry. Each sha256_hash appears exactly once,
+      representing the earliest upload of that book.
+    columns:
+      - name: sha256_hash
+        description: "SHA-256 digest of the raw EPUB bytes. Primary dedup key."
+        tests:
+          - unique
+          - not_null
+      - name: filename
+        tests:
+          - not_null
+      - name: storage_path
+        tests:
+          - not_null
