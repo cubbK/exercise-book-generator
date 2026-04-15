@@ -17,6 +17,8 @@ dependencies = [
     "lxml>=5.0.0",
     "polars>=1.0.0",
     "html2text>=2024.2.26",
+    "dagster-dbt>=0.28.20",
+    "dbt-bigquery>=1.11.1",
 ]
 
 [dependency-groups]

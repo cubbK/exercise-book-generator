@@ -1,0 +1,12 @@
+exercise_book:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth # uses `gcloud auth application-default login`
+      project: "{{ env_var('GCP_PROJECT') }}"
+      dataset: bronze # default dataset; individual models may override via +schema
+      threads: 4
+      timeout_seconds: 300
+      location: EU # change to US or a specific region if needed
+      priority: interactive

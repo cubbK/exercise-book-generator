@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: bronze_raw
+    description: "Raw staging tables written by Dagster Python assets before deduplication."
+    schema: bronze_raw
+    tables:
+      - name: epub_registry_raw
+        description: >
+          All EPUB metadata rows written by the epub_registry_raw Dagster asset.
+          Contains duplicates — deduplication is handled by the epub_registry
+          incremental model downstream.
+        columns:
+          - name: file_id
+            description: "UUID generated at ingest time."
+          - name: filename
+            description: "Basename of the EPUB file."
+          - name: storage_path
+            description: "Full GCS URI (gs://bucket/path)."
+          - name: sha256_hash
+            description: "SHA-256 digest of the raw EPUB bytes. Used as the dedup key."
+          - name: uploaded_at
+            description: "UTC timestamp when the row was written."
+          - name: status
+            description: "Initial ingestion status, always 'registered' at write time."
