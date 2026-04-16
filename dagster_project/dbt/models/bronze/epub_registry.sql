@@ -12,8 +12,7 @@ SELECT
     filename,
     storage_path,
     sha256_hash,
-    uploaded_at,
-    status
+    uploaded_at
 FROM {{ source('bronze_raw', 'epub_registry_raw') }}
 
 {% if is_incremental() %}

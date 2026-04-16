@@ -28,5 +28,3 @@ sources:
               - not_null
           - name: uploaded_at
             description: "UTC timestamp when the row was written."
-          - name: status
-            description: "Initial ingestion status, always 'registered' at write time."

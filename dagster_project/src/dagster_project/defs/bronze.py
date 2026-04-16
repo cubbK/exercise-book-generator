@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 from dagster import asset, get_dagster_logger
+from google.cloud import bigquery
 
 from dagster_project.resources.object_store import GCSObjectStoreResource
 from dagster_project.resources.storage import BigQueryStorage
@@ -45,20 +46,29 @@ def epub_registry_raw(storage: BigQueryStorage, gcs: GCSObjectStoreResource) -> 
 
     rows = []
     for blob in epub_blobs:
-        data = gcs.download_bytes(blob.name)
+        data = gcs.download_bytes(blob.name)  # type: ignore
         rows.append(
             {
                 "file_id": str(uuid.uuid4()),
-                "filename": blob.name.split("/")[-1],
+                "filename": blob.name.split("/")[-1],  # type: ignore
                 "storage_path": f"gs://{gcs.bucket}/{blob.name}",
                 "sha256_hash": hashlib.sha256(data).hexdigest(),
                 "uploaded_at": datetime.now(timezone.utc),
-                "status": "registered",
             }
         )
 
+    EPUB_REGISTRY_RAW_SCHEMA = [
+        bigquery.SchemaField("file_id", "STRING"),
+        bigquery.SchemaField("filename", "STRING"),
+        bigquery.SchemaField("storage_path", "STRING"),
+        bigquery.SchemaField("sha256_hash", "STRING"),
+        bigquery.SchemaField("uploaded_at", "TIMESTAMP"),
+    ]
+
     if rows:
-        storage.write_df("epub_registry_raw", pd.DataFrame(rows))
+        storage.write_df(
+            "epub_registry_raw", pd.DataFrame(rows), schema=EPUB_REGISTRY_RAW_SCHEMA
+        )
         logger.info(f"Wrote {len(rows)} row(s) to epub_registry_raw")
     else:
         logger.info("No EPUBs found — nothing to write")
