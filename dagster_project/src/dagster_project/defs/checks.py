@@ -21,7 +21,7 @@ Silver checks (silver_chapters):
 
 from __future__ import annotations
 
-from dagster import AssetCheckResult, asset_check
+from dagster import AssetCheckResult, AssetCheckSeverity, asset_check
 
 from dagster_project.resources.storage import BigQueryStorage
 

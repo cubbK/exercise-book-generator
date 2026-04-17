@@ -82,12 +82,12 @@ def _ensure_silver_tables(storage: BigQueryStorage) -> None:
     specs=[
         AssetSpec(
             "silver_books",
-            deps=["epub_registry_raw"],
+            deps=["epub_registry"],
             description="One row per EPUB: title, author, language, ISBN, year, path.",
         ),
         AssetSpec(
             "silver_chapters",
-            deps=["epub_registry_raw"],
+            deps=["epub_registry"],
             description="One row per chapter: ordered title + full raw text.",
         ),
     ],
@@ -107,7 +107,7 @@ def parse_epub_silver(
     registered = storage.execute(
         f"""
         SELECT r.file_id, r.filename, r.storage_path
-        FROM `{storage.project}.{storage.dataset}.epub_registry_raw` AS r
+        FROM `{storage.project}.{storage.dataset}.epub_registry` AS r
         LEFT JOIN `{storage.project}.{SILVER_DATASET}.books` AS b
           USING (file_id)
         WHERE b.file_id IS NULL
