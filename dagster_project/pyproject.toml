@@ -19,6 +19,8 @@ dependencies = [
     "html2text>=2024.2.26",
     "dagster-dbt>=0.28.20",
     "dbt-bigquery>=1.11.1",
+    "agent-framework>=1.0.1",
+    "langgraph>=1.1.8",
 ]
 
 [dependency-groups]
