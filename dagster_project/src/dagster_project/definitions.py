@@ -7,6 +7,7 @@ from dagster_dbt import DbtCliResource
 from dagster_project.defs.dbt import dbt_project
 from dagster_project.resources.object_store import GCSObjectStoreResource
 from dagster_project.resources.storage import BigQueryStorage
+from dagster_project.resources.vertex_ai import VertexAIResource
 
 
 @definitions
@@ -26,7 +27,12 @@ def defs():
 
     dbt = DbtCliResource(project_dir=os.fspath(dbt_project.project_dir))
 
+    vertex_ai = VertexAIResource(
+        project=os.environ["GCP_PROJECT"],
+        location=os.getenv("VERTEX_AI_LOCATION", os.getenv("BIGQUERY_LOCATION", "EU")),
+    )
+
     return Definitions.merge(
         loaded,
-        Definitions(resources={"storage": storage, "gcs": gcs, "dbt": dbt}),
+        Definitions(resources={"storage": storage, "gcs": gcs, "dbt": dbt, "vertex_ai": vertex_ai}),
     )

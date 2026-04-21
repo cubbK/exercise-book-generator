@@ -21,6 +21,8 @@ dependencies = [
     "dbt-bigquery>=1.11.1",
     "agent-framework>=1.0.1",
     "langgraph>=1.1.8",
+    "langchain-google-vertexai>=3.2.2",
+    "langchain-google-genai>=2.0.0",
 ]
 
 [dependency-groups]
