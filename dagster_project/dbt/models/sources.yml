@@ -12,7 +12,7 @@ sources:
           incremental model downstream.
         meta:
           dagster:
-            asset_key: ["epub_registry_raw"]
+            asset_key: ["bronze_epub_registry_raw"]
         columns:
           - name: file_id
             description: "UUID generated at ingest time."

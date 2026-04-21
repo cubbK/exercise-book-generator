@@ -1,11 +1,16 @@
 version: 2
 
 models:
-  - name: epub_registry
+  - name: bronze_epub_registry
     description: >
       Deduplicated EPUB registry. Each sha256_hash appears exactly once,
       representing the earliest upload of that book.
     columns:
+      - name: book_id
+        description: "Stable UUID assigned at registration time. Partition key across silver and gold."
+        tests:
+          - unique
+          - not_null
       - name: sha256_hash
         description: "SHA-256 digest of the raw EPUB bytes. Primary dedup key."
         tests:

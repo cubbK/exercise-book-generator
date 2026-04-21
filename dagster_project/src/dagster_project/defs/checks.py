@@ -4,7 +4,7 @@ Asset checks — data quality validation for bronze and silver layers.
 Checks run after each asset materialises and surface pass/fail results
 in the Dagster UI without polluting the asset logic itself.
 
-Bronze checks (epub_registry_raw):
+Bronze checks (bronze_epub_registry_raw):
     - Every row has a non-empty filename and storage_path
     - SHA-256 hash column is always 64 hex characters (valid hash)
 
@@ -19,8 +19,6 @@ Silver checks (silver_chapters):
     - Every book has at least one chapter
 """
 
-from __future__ import annotations
-
 from dagster import AssetCheckResult, AssetCheckSeverity, asset_check
 
 from dagster_project.resources.storage import BigQueryStorage
@@ -29,12 +27,12 @@ _BRONZE = "exercise_book_bronze"
 _SILVER = "exercise_book_silver"
 
 # ---------------------------------------------------------------------------
-# Bronze — epub_registry_raw
+# Bronze — bronze_epub_registry_raw
 # ---------------------------------------------------------------------------
 
 
 @asset_check(
-    asset="epub_registry_raw",
+    asset="bronze_epub_registry_raw",
     description="Every staged EPUB must have a non-empty filename and storage_path.",
 )
 def epub_registry_no_blank_paths(storage: BigQueryStorage) -> AssetCheckResult:
@@ -52,7 +50,7 @@ def epub_registry_no_blank_paths(storage: BigQueryStorage) -> AssetCheckResult:
 
 
 @asset_check(
-    asset="epub_registry_raw",
+    asset="bronze_epub_registry_raw",
     description="sha256_hash must always be a 64-character hex string.",
 )
 def epub_registry_valid_sha256(storage: BigQueryStorage) -> AssetCheckResult:

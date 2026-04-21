@@ -8,6 +8,7 @@
 }}
 
 SELECT
+    book_id,
     file_id,
     filename,
     storage_path,
