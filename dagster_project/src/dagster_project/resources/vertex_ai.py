@@ -5,19 +5,17 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 class VertexAIResource(ConfigurableResource):
-    """Vertex AI resource backed by ``ChatVertexAI``.
+    """Vertex AI resource backed by ``ChatGoogleGenerativeAI``.
 
     Authentication uses Application Default Credentials (ADC), the same
     mechanism as BigQuery — no extra credentials required on GCP.
     """
 
     project: str
-    location: str
-    model_name: str = "gemini-2.0-flash"
+    model_name: str = "gemini-3.1-flash-lite-preview"
 
     def get_llm(self) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
             model=self.model_name,
             project=self.project,
-            location=self.location,
         )

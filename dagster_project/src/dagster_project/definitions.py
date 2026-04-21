@@ -34,5 +34,12 @@ def defs():
 
     return Definitions.merge(
         loaded,
-        Definitions(resources={"storage": storage, "gcs": gcs, "dbt": dbt, "vertex_ai": vertex_ai}),
+        Definitions(
+            resources={
+                "storage": storage,
+                "gcs": gcs,
+                "dbt": dbt,
+                "vertex_ai": vertex_ai,
+            }
+        ),
     )
