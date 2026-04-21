@@ -1,4 +1,4 @@
-from dagster_project.lib.chapter_categorizer import (
+from dagster_project.libs.chapter_categorizer import (
     categorize_chapter,
     build_categorizer_graph,
 )

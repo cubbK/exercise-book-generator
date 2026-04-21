@@ -18,7 +18,7 @@
 
 5. Create `src/dagster_project/lib/chapter_categorizer.py`:
    - `VALID_CATEGORIES` frozenset
-   - `CategorizationState(TypedDict)`: `chapter_id`, `title`, `raw_text_preview`, `category`, `judgment`, `feedback`, `attempts`
+   - `CategorizationState(TypedDict)`: `chapter_id`, `title`, `raw_text`, `category`, `judgment`, `feedback`, `attempts`
    - `build_categorizer_graph(llm) → CompiledGraph` — the full LangGraph:
      ```
      [categorize] ──► [judge] ──► (approved OR attempts ≥ 3?) ──► END

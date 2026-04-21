@@ -15,7 +15,8 @@ Public API
 
 from __future__ import annotations
 
-from typing import Literal
+import operator
+from typing import Annotated, Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
@@ -28,13 +29,7 @@ from typing_extensions import TypedDict
 
 VALID_CATEGORIES: frozenset[str] = frozenset(
     {
-        "title_page",
-        "dedication_page",
-        "table_of_contents",
-        "paragraph",
-        "acknowledgments_page",
-        "glossary",
-        "bibliography",
+        "chapter",
         "other",
     }
 )
@@ -49,10 +44,13 @@ _CATEGORIES_LIST = ", ".join(sorted(VALID_CATEGORIES))
 class CategorizationState(TypedDict):
     chapter_id: str
     title: str
-    raw_text_preview: str  # first 800 chars of raw_text
+    raw_text: str
     category: str  # populated by categorize node
     judgment: str  # "approved" | "rejected"
-    feedback: str  # rejection reason (empty string if none)
+    feedback: str  # latest rejection reason (empty string if none)
+    feedback_history: Annotated[
+        list[str], operator.add
+    ]  # all rejection reasons, one per rejected attempt
     attempts: int
 
 
@@ -74,7 +72,7 @@ _CATEGORIZE_PROMPT = ChatPromptTemplate.from_messages(
             "human",
             (
                 "Chapter title: {title}\n\n"
-                "Text preview:\n{raw_text_preview}\n\n"
+                "Text:\n{raw_text}\n\n"
                 "{feedback_section}"
                 "Category:"
             ),
@@ -97,7 +95,7 @@ _JUDGE_PROMPT = ChatPromptTemplate.from_messages(
             "human",
             (
                 "Chapter title: {title}\n\n"
-                "Text preview:\n{raw_text_preview}\n\n"
+                "Text:\n{raw_text}\n\n"
                 "Assigned category: {category}\n\n"
                 "Valid categories: {categories}\n\n"
                 "Your verdict:"
@@ -120,7 +118,7 @@ def _make_categorize_node(llm: BaseChatModel):
             {
                 "categories": _CATEGORIES_LIST,
                 "title": state["title"],
-                "raw_text_preview": state["raw_text_preview"],
+                "raw_text": state["raw_text"],
                 "feedback_section": feedback_section,
             }
         )
@@ -142,7 +140,7 @@ def _make_judge_node(llm: BaseChatModel):
         response = chain.invoke(
             {
                 "title": state["title"],
-                "raw_text_preview": state["raw_text_preview"],
+                "raw_text": state["raw_text"],
                 "category": state["category"],
                 "categories": _CATEGORIES_LIST,
             }
@@ -153,7 +151,11 @@ def _make_judge_node(llm: BaseChatModel):
             return {"judgment": "approved"}
         # "rejected: <reason>"
         feedback = verdict.removeprefix("rejected:").strip()
-        return {"judgment": "rejected", "feedback": feedback}
+        return {
+            "judgment": "rejected",
+            "feedback": feedback,
+            "feedback_history": [feedback],
+        }
 
     return judge
 
@@ -192,7 +194,7 @@ def build_categorizer_graph(llm: BaseChatModel):
 # Public helper
 # ---------------------------------------------------------------------------
 
-_TEXT_PREVIEW_CHARS = 800
+_TEXT_CHARS = 800
 
 
 def categorize_chapter(
@@ -212,10 +214,11 @@ def categorize_chapter(
     initial_state: CategorizationState = {
         "chapter_id": chapter_id,
         "title": title,
-        "raw_text_preview": raw_text[:_TEXT_PREVIEW_CHARS],
+        "raw_text": raw_text,
         "category": "",
         "judgment": "",
         "feedback": "",
+        "feedback_history": [],
         "attempts": 0,
     }
     final_state = graph.invoke(initial_state)
