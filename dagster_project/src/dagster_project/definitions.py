@@ -29,7 +29,6 @@ def defs():
 
     vertex_ai = VertexAIResource(
         project=os.environ["GCP_PROJECT"],
-        location=os.getenv("VERTEX_AI_LOCATION", os.getenv("BIGQUERY_LOCATION", "EU")),
     )
 
     return Definitions.merge(
