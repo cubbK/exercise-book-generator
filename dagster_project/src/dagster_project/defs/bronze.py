@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pandas as pd
-from dagster import AssetExecutionContext, asset, get_dagster_logger
+from dagster import AssetDep, AssetExecutionContext, AssetKey, asset, get_dagster_logger
 from google.cloud import bigquery
 
 from dagster_project.resources.object_store import GCSObjectStoreResource
@@ -76,10 +76,30 @@ def bronze_epub_registry_raw(
             "epub_registry_raw", pd.DataFrame(rows), schema=EPUB_REGISTRY_RAW_SCHEMA
         )
         logger.info(f"Wrote {len(rows)} row(s) to epub_registry_raw")
-        new_book_ids = [row["book_id"] for row in rows]
-        context.instance.add_dynamic_partitions("books", new_book_ids)
-        logger.info(
-            f"Registered {len(new_book_ids)} new book partition(s): {new_book_ids}"
-        )
     else:
         logger.info("No EPUBs found — nothing to write")
+
+
+@asset(
+    name="bronze_register_book_partitions",
+    group_name="bronze",
+    deps=[AssetDep(AssetKey(["bronze", "bronze_epub_registry"]))],
+    description=(
+        "Reads unique book_ids from dbt bronze_epub_registry and registers "
+        "them as dynamic 'books' partitions for downstream silver/gold assets."
+    ),
+)
+def register_book_partitions(
+    context: AssetExecutionContext,
+    storage: BigQueryStorage,
+) -> None:
+    logger = get_dagster_logger()
+    rows = storage.execute(
+        f"SELECT book_id FROM `{storage.project}.exercise_book_bronze.bronze_epub_registry`"
+    )
+    book_ids = [row["book_id"] for row in rows]
+    if book_ids:
+        context.instance.add_dynamic_partitions("books", book_ids)
+        logger.info(f"Registered {len(book_ids)} book partition(s): {book_ids}")
+    else:
+        logger.info("No books found in bronze_epub_registry — nothing to register")
