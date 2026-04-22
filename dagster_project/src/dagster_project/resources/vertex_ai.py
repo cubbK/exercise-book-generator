@@ -14,8 +14,8 @@ class VertexAIResource(ConfigurableResource):
     project: str
     model_name: str = "gemini-3.1-flash-lite-preview"
 
-    def get_llm(self) -> ChatGoogleGenerativeAI:
+    def get_llm(self, model_name: str | None = None) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
-            model=self.model_name,
+            model=model_name or self.model_name,
             project=self.project,
         )
