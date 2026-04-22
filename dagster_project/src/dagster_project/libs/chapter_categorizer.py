@@ -23,6 +23,15 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
 
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
+
+# Initialize Langfuse client
+langfuse = get_client()
+
+# Initialize Langfuse CallbackHandler for Langchain (tracing)
+langfuse_handler = CallbackHandler()
+
 # ---------------------------------------------------------------------------
 # Valid categories
 # ---------------------------------------------------------------------------
@@ -71,9 +80,9 @@ _CATEGORIZE_PROMPT = ChatPromptTemplate.from_messages(
         (
             "human",
             (
+                "Feedback from previous attempt (if any):\n{feedback_section}\n"
                 "Chapter title: {title}\n\n"
                 "Text:\n{raw_text}\n\n"
-                "{feedback_section}"
                 "Category:"
             ),
         ),
@@ -221,5 +230,9 @@ def categorize_chapter(
         "feedback_history": [],
         "attempts": 0,
     }
-    final_state = graph.invoke(initial_state)
+    final_state: CategorizationState = graph.invoke(
+        initial_state, config={"callbacks": [langfuse_handler]}
+    )
+    if final_state["judgment"] == "rejected":
+        final_state["category"] = "other"
     return final_state

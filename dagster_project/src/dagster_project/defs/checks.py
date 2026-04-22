@@ -17,9 +17,20 @@ Silver checks (silver_chapters):
     - raw_text is never null or suspiciously short (< 50 chars)
     - chapter_order is unique per book (no duplicates)
     - Every book has at least one chapter
+
+Gold checks (gold_chapter_categories):
+    - Per-partition: items categorised as 'chapter' must have consecutive
+      chapter_order values (no gaps between min and max order)
 """
 
-from dagster import AssetCheckResult, AssetCheckSeverity, asset_check
+from dagster import (
+    AssetCheckExecutionContext,
+    AssetCheckResult,
+    AssetCheckSeverity,
+    asset_check,
+)
+
+from dagster_project.defs.partitions import book_partitions
 
 from dagster_project.resources.storage import BigQueryStorage
 
@@ -185,4 +196,53 @@ def silver_books_have_chapters(storage: BigQueryStorage) -> AssetCheckResult:
         passed=count == 0,
         severity=AssetCheckSeverity.WARN,
         metadata={"books_without_chapters": count},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gold — gold_chapter_categories
+# ---------------------------------------------------------------------------
+
+_GOLD = "exercise_book_gold"
+
+
+@asset_check(
+    asset="gold_chapter_categories",
+    partitions_def=book_partitions,
+    description=(
+        "For the current book partition, chapters labelled 'chapter' must have "
+        "consecutive chapter_order values — no gaps allowed. "
+        "E.g. if orders 2–40 are chapters, all integers in that range must appear."
+    ),
+)
+def gold_chapters_are_consecutive(
+    context: AssetCheckExecutionContext,
+    storage: BigQueryStorage,
+) -> AssetCheckResult:
+    book_id = context.partition_key
+    rows = storage.execute(
+        f"""
+        SELECT
+            MIN(sc.chapter_order) AS min_order,
+            MAX(sc.chapter_order) AS max_order,
+            COUNT(*)              AS actual_count,
+            MAX(sc.chapter_order) - MIN(sc.chapter_order) + 1 AS expected_count
+        FROM `{storage.project}.{_GOLD}.chapter_categories` AS gc
+        JOIN `{storage.project}.{_SILVER}.chapters` AS sc USING (chapter_id)
+        WHERE gc.category = 'chapter'
+          AND gc.book_id = '{book_id}'
+        """
+    )
+    row = rows[0]
+    actual = int(row["actual_count"] or 0)
+    expected = int(row["expected_count"] or 0)
+    return AssetCheckResult(
+        passed=actual == expected,
+        metadata={
+            "book_id": book_id,
+            "min_order": row["min_order"],
+            "max_order": row["max_order"],
+            "actual_count": actual,
+            "expected_count": expected,
+        },
     )
