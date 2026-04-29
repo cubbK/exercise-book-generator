@@ -50,4 +50,6 @@ registry_modules = [
     "dagster_project.components.*",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 

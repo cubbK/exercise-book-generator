@@ -13,14 +13,18 @@ Strategy:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from urllib.parse import unquote
 
+import warnings
+
 import html2text
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 from bs4.element import NavigableString
 from ebooklib import epub, ITEM_DOCUMENT
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +36,7 @@ from ebooklib import epub, ITEM_DOCUMENT
 class ParsedChapter:
     order: int
     title: str
+    chapter_key: str
     raw_text: str
 
 
@@ -126,35 +131,135 @@ def _extract_metadata(book: epub.EpubBook) -> dict:
     }
 
 
-def _flatten_toc(toc) -> list[tuple[str, str]]:
-    """Recursively flatten ebooklib TOC into (title, href) pairs."""
-    result = []
+# ---------------------------------------------------------------------------
+# TOC tree
+# ---------------------------------------------------------------------------
+
+MERGE_THRESHOLD = 30_000
+_MIN_CHAPTER_CHARS = 100  # nodes with less own-text are section dividers; skip them
+
+
+@dataclass
+class TocNode:
+    title: str
+    file_part: str
+    anchor: str | None
+    depth: int
+    children: list["TocNode"] = field(default_factory=list)
+    text: str = ""
+
+
+def _build_toc_tree(toc, depth: int = 0) -> list[TocNode]:
+    """Recursively build TocNode tree from ebooklib TOC, preserving hierarchy."""
+    result: list[TocNode] = []
     for item in toc:
         if isinstance(item, epub.Link):
-            result.append((item.title or "", item.href or ""))
+            href = item.href or ""
+            file_part, _, anchor = href.partition("#")
+            result.append(
+                TocNode(
+                    title=item.title or "",
+                    file_part=unquote(file_part).lstrip("/"),
+                    anchor=anchor or None,
+                    depth=depth,
+                )
+            )
         elif isinstance(item, tuple) and len(item) == 2:
             section, children = item
-            if href := getattr(section, "href", None):
-                result.append((getattr(section, "title", "") or "", href))
-            result.extend(_flatten_toc(children))
+            href = getattr(section, "href", "") or ""
+            file_part, _, anchor = href.partition("#")
+            node = TocNode(
+                title=getattr(section, "title", "") or "",
+                file_part=unquote(file_part).lstrip("/"),
+                anchor=anchor or None,
+                depth=depth,
+                children=_build_toc_tree(children, depth + 1),
+            )
+            result.append(node)
     return result
 
 
-def _top_level_toc(toc) -> list[tuple[str, str]]:
-    """Return only top-level TOC entries as (title, href) pairs, ignoring sub-entries."""
-    result = []
-    for item in toc:
-        if isinstance(item, epub.Link):
-            result.append((item.title or "", item.href or ""))
-        elif isinstance(item, tuple) and len(item) == 2:
-            section, _children = item
-            if href := getattr(section, "href", None):
-                result.append((getattr(section, "title", "") or "", href))
+def _flatten_nodes(nodes: list[TocNode]) -> list[TocNode]:
+    """Pre-order flatten of TocNode tree."""
+    result: list[TocNode] = []
+    for node in nodes:
+        result.append(node)
+        result.extend(_flatten_nodes(node.children))
     return result
+
+
+def _hierarchy_key(path: list[int]) -> str:
+    """Convert a 1-based index path to a hierarchy key string.
+
+    Examples::
+        [1]       → 'chapter_level1'
+        [2]       → 'chapter_level2'
+        [1, 2]    → 'chapter_level1_sublevel2'
+        [1, 2, 3] → 'chapter_level1_sublevel2_sublevel3'
+    """
+    if not path:
+        return "chapter"
+    parts = [f"level{path[0]}"] + [f"sublevel{i}" for i in path[1:]]
+    return "chapter_" + "_".join(parts)
+
+
+def _collect_text(node: TocNode) -> str:
+    """Concatenate a node's text with all descendants' text."""
+    parts = [node.text] + [_collect_text(c) for c in node.children]
+    return "\n\n".join(p for p in parts if p)
+
+
+def _emit_chapters(
+    node: TocNode,
+    path: list[int],
+    chapters: list[ParsedChapter],
+) -> None:
+    """Recursively emit ParsedChapter entries with merge logic.
+
+    Merge rule:
+    - Depth < 2 (levels 1–2) with total text < MERGE_THRESHOLD: unite node +
+      all descendants into a single chapter.
+    - Depth >= 2 (level 3+) or total text >= MERGE_THRESHOLD: emit the node
+      as its own chapter and recurse into children.
+    """
+    total_text = _collect_text(node)
+    depth = len(path) - 1  # 0-based
+
+    merge = bool(node.children) and depth < 2 and len(total_text) < MERGE_THRESHOLD
+
+    key = _hierarchy_key(path)
+    if merge:
+        if total_text:
+            chapters.append(
+                ParsedChapter(
+                    order=len(chapters),
+                    title=node.title or key,
+                    chapter_key=key,
+                    raw_text=total_text,
+                )
+            )
+    else:
+        if node.text:
+            chapters.append(
+                ParsedChapter(
+                    order=len(chapters),
+                    title=node.title or key,
+                    chapter_key=key,
+                    raw_text=node.text,
+                )
+            )
+        for i, child in enumerate(node.children, 1):
+            _emit_chapters(child, path + [i], chapters)
 
 
 def parse_epub(data: bytes) -> ParsedBook:
-    """Parse EPUB bytes into a ParsedBook with ordered chapters."""
+    """Parse EPUB bytes into a ParsedBook with hierarchical chapters.
+
+    TOC levels are preserved.  When a node + all its descendants fit within
+    MERGE_THRESHOLD characters they are merged into a single chapter; otherwise
+    each level is emitted as its own chapter.  Nodes at depth >= 2 (level 3+)
+    are always kept separate regardless of size.
+    """
     book = epub.read_epub(BytesIO(data))
     meta = _extract_metadata(book)
 
@@ -174,45 +279,40 @@ def parse_epub(data: bytes) -> ParsedBook:
             None,
         )
 
-    # --- TOC-based extraction -------------------------------------------
-    # Use only top-level TOC entries so that ## chapters include all ###
-    # sub-entries rather than being split into separate chapters.
-    entries = [
-        (title.strip(), *((unquote(href).split("#", 1) + [None])[:2]))
-        for title, href in _top_level_toc(book.toc)
-    ]
-    # Normalise: entries[i] = (title, file_part, anchor_or_None)
-    entries = [(t, (f or "").lstrip("/"), a or None) for t, f, a in entries]
+    # --- Build TOC tree and extract text per node -----------------------
+    roots = _build_toc_tree(book.toc)
+    flat_nodes = _flatten_nodes(roots)
 
-    chapters: list[ParsedChapter] = []
     seen: set[tuple[str, str | None]] = set()
-
-    for i, (title, file_part, anchor) in enumerate(entries):
-        key = (file_part, anchor)
-        if key in seen:
+    for i, node in enumerate(flat_nodes):
+        file_key = (node.file_part, node.anchor)
+        if file_key in seen:
             continue
-        seen.add(key)
+        seen.add(file_key)
 
-        item = resolve(file_part)
+        item = resolve(node.file_part)
         if not item:
             continue
 
-        # Stop at the next TOC anchor that lives in the same file
-        stop = next((a for _, f, a in entries[i + 1 :] if f == file_part), None)
+        # Stop at the anchor of the next node that shares the same file
+        stop = next(
+            (n.anchor for n in flat_nodes[i + 1 :] if n.file_part == node.file_part),
+            None,
+        )
+        node.text = _to_text(item.get_content(), node.anchor, stop)
 
-        text = _to_text(item.get_content(), anchor, stop)
-        if text:
-            chapters.append(
-                ParsedChapter(
-                    order=len(chapters),
-                    title=title or f"Chapter {len(chapters) + 1}",
-                    raw_text=text,
-                )
-            )
+    # --- Emit chapters with merge logic ---------------------------------
+    chapters: list[ParsedChapter] = []
+    key_idx = 0
+    for root in roots:
+        if not _collect_text(root):
+            continue
+        key_idx += 1
+        _emit_chapters(root, [key_idx], chapters)
 
     # --- Fallback: all documents sorted by spine order ------------------
     if len(chapters) < 2:
-        spine_pos = {item_id: i for i, (item_id, _) in enumerate(book.spine)}
+        spine_pos = {item_id: idx for idx, (item_id, _) in enumerate(book.spine)}
         docs = sorted(
             book.get_items_of_type(ITEM_DOCUMENT),
             key=lambda d: (spine_pos.get(d.id, 9999), d.file_name),
@@ -227,6 +327,7 @@ def parse_epub(data: bytes) -> ParsedBook:
                     ParsedChapter(
                         order=order,
                         title=base or f"Chapter {order + 1}",
+                        chapter_key=f"chapter_level{order + 1}",
                         raw_text=text,
                     )
                 )

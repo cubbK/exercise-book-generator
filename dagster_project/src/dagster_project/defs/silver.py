@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS `{project}.exercise_book_silver.chapters` (
     chapter_id      STRING    NOT NULL,
     book_id         STRING    NOT NULL,
     chapter_order   INT64     NOT NULL,
+    chapter_key     STRING,
     title           STRING,
     raw_text        STRING,
     parsed_at       TIMESTAMP NOT NULL
@@ -166,6 +167,7 @@ def parse_epub_silver(
             "chapter_id": f"{book_id}-{chapter.order}",
             "book_id": book_id,
             "chapter_order": chapter.order,
+            "chapter_key": chapter.chapter_key,
             "title": chapter.title,
             "raw_text": chapter.raw_text,
             "parsed_at": now,
