@@ -27,7 +27,7 @@ from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 
 # Model used for simplification
-MODEL_NAME = "gemini-3.1-pro-preview"
+MODEL_NAME = "gemini-2.5-flash-preview-04-17"
 
 # Initialize Langfuse client
 langfuse = get_client()

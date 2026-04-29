@@ -16,6 +16,6 @@ class VertexAIResource(ConfigurableResource):
 
     def get_llm(self, model_name: str | None = None) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
-            model=model_name or self.model_name,
+            model=self.model_name,
             project=self.project,
         )

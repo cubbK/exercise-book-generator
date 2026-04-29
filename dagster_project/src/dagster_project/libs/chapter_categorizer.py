@@ -203,7 +203,7 @@ def build_categorizer_graph(llm: BaseChatModel):
 # Public helper
 # ---------------------------------------------------------------------------
 
-_TEXT_CHARS = 800
+_TEXT_CHARS = 500
 
 
 def categorize_chapter(
@@ -223,7 +223,7 @@ def categorize_chapter(
     initial_state: CategorizationState = {
         "chapter_id": chapter_id,
         "title": title,
-        "raw_text": raw_text,
+        "raw_text": raw_text[:_TEXT_CHARS],
         "category": "",
         "judgment": "",
         "feedback": "",

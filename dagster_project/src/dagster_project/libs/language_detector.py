@@ -199,7 +199,7 @@ def build_detector_graph(llm: BaseChatModel):
 # ---------------------------------------------------------------------------
 
 # Truncate to keep prompt costs manageable (mirrors chapter_categorizer pattern)
-_TEXT_CHARS = 800
+_TEXT_CHARS = 500
 
 
 def detect_language(
