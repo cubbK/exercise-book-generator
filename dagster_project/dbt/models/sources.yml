@@ -1,6 +1,82 @@
 version: 2
 
 sources:
+  - name: silver
+    description: "Silver layer tables written by Dagster Python assets."
+    database: dan-learning-0929
+    schema: exercise_book_silver
+    tables:
+      - name: chapters
+        description: "Parsed chapters extracted from EPUBs."
+        meta:
+          dagster:
+            asset_key: ["silver_chapters"]
+        columns:
+          - name: chapter_id
+            description: "Stable UUID for the chapter."
+          - name: book_id
+            description: "Foreign key to books."
+          - name: raw_text
+            description: "Raw extracted chapter text."
+          - name: chapter_order
+            description: "Sequential order of the chapter within the book."
+      - name: books
+        description: "Book-level metadata."
+        meta:
+          dagster:
+            asset_key: ["silver_books"]
+        columns:
+          - name: book_id
+            description: "Stable UUID for the book."
+          - name: title
+            description: "Book title."
+
+  - name: gold_llm
+    description: "Gold layer tables produced by LLM enrichment Dagster assets."
+    database: dan-learning-0929
+    schema: exercise_book_gold
+    tables:
+      - name: chapter_categories
+        description: "LLM-assigned category per chapter."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_categories"]
+        columns:
+          - name: chapter_id
+          - name: category
+      - name: chapter_swedish_a2_text
+        description: "A2-level Swedish rewrite of the chapter."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_swedish_a2_text"]
+        columns:
+          - name: chapter_id
+          - name: a2_text
+      - name: chapter_swedish_a2_summary
+        description: "A2-level Swedish summary of the chapter."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_swedish_a2_summary"]
+        columns:
+          - name: chapter_id
+          - name: summary
+      - name: chapter_swedish_text
+        description: "Full Swedish translation of the chapter."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_swedish_text"]
+        columns:
+          - name: chapter_id
+          - name: swedish_text
+      - name: chapter_language
+        description: "Detected source language of the chapter."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_language"]
+        columns:
+          - name: chapter_id
+          - name: detected_language
+
   - name: bronze_raw
     description: "Raw staging tables written by Dagster Python assets before deduplication."
     schema: exercise_book_bronze

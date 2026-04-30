@@ -25,3 +25,9 @@ models:
       +meta:
         dagster:
           group: bronze
+    gold:
+      +materialized: table
+      +schema: gold
+      +meta:
+        dagster:
+          group: gold

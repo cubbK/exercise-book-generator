@@ -26,6 +26,9 @@ dependencies = [
     "langfuse>=4.5.0",
     "langchain>=1.2.15",
     "langchain-openai>=1.1.15",
+    "bigframes>=2.39.0",
+    "ipykernel>=7.2.0",
+    "bigquery-magics>=0.14.0",
 ]
 
 [dependency-groups]
