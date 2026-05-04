@@ -121,7 +121,8 @@ function TextBlock({ text }) {
 const CHAPTER_TABS = [
   { label: "Summary", key: "a2_summary" },
   { label: "Original", key: "raw_text" },
-  { label: "Easy Swedish", key: "a2_text" },
+  { label: "A2 Swedish", key: "a2_text" },
+  { label: "B1-B2 Swedish", key: "b1b2_text" },
   { label: "Normal Swedish", key: "swedish_text" },
 ];
 
@@ -132,7 +133,9 @@ function Chapter({ chapter }) {
   const mainText =
     mode === "easy"
       ? chapter.a2_text || chapter.raw_text
-      : chapter.swedish_text || chapter.raw_text;
+      : mode === "b1b2"
+        ? chapter.b1b2_text || chapter.raw_text
+        : chapter.swedish_text || chapter.raw_text;
 
   return (
     <Box
@@ -422,6 +425,7 @@ function LanguageSelector() {
           onChange={(e) => setMode(e.target.value)}
         >
           <MenuItem value="easy">Easy Swedish (A2)</MenuItem>
+          <MenuItem value="b1b2">B1-B2 Swedish</MenuItem>
           <MenuItem value="normal">Normal Swedish</MenuItem>
         </Select>
       </FormControl>
