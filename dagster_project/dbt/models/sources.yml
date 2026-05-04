@@ -76,6 +76,14 @@ sources:
         columns:
           - name: chapter_id
           - name: detected_language
+      - name: chapter_swedish_b1b2_text
+        description: "B1–B2 level Swedish rewrite of the chapter, preserving narrative voice and structure."
+        meta:
+          dagster:
+            asset_key: ["gold_chapter_swedish_b1b2_text"]
+        columns:
+          - name: chapter_id
+          - name: b1b2_text
 
   - name: bronze_raw
     description: "Raw staging tables written by Dagster Python assets before deduplication."

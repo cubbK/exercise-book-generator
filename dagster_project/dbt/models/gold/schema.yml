@@ -28,6 +28,8 @@ models:
         description: "A2-level Swedish rewrite produced by the LLM."
       - name: a2_summary
         description: "A2-level Swedish summary produced by the LLM."
+      - name: b1b2_text
+        description: "B1–B2 level Swedish rewrite produced by the LLM. Preserves the full narrative structure and voice of the original chapter."
       - name: swedish_text
         description: "Full Swedish translation produced by the LLM."
       - name: source_language
