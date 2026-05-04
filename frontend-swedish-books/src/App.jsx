@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -9,25 +9,29 @@ import {
 } from "react-router-dom";
 import booksData from "../books_extract.json";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Box,
   Button,
   Container,
   CssBaseline,
   Divider,
+  FormControl,
+  InputLabel,
   List,
   ListItem,
   ListItemButton,
   ListItemText,
+  MenuItem,
+  Select,
+  Tab,
+  Tabs,
   ThemeProvider,
   Typography,
   createTheme,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+
+const LanguageContext = createContext({ mode: "easy", setMode: () => {} });
 
 const solarized = {
   base3: "#FDF6E3",
@@ -114,7 +118,22 @@ function TextBlock({ text }) {
   );
 }
 
+const CHAPTER_TABS = [
+  { label: "Summary", key: "a2_summary" },
+  { label: "Original", key: "raw_text" },
+  { label: "Easy Swedish", key: "a2_text" },
+  { label: "Normal Swedish", key: "swedish_text" },
+];
+
 function Chapter({ chapter }) {
+  const { mode } = useContext(LanguageContext);
+  const [tab, setTab] = useState(null);
+
+  const mainText =
+    mode === "easy"
+      ? chapter.a2_text || chapter.raw_text
+      : chapter.swedish_text || chapter.raw_text;
+
   return (
     <Box
       sx={{
@@ -125,68 +144,40 @@ function Chapter({ chapter }) {
         background: solarized.base3,
       }}
     >
-      <TextBlock text={chapter.a2_text || chapter.raw_text} />
+      <TextBlock text={mainText} />
 
       <Box sx={{ mt: 3, borderTop: `1px solid ${solarized.base2}` }}>
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: solarized.base1,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-              }}
-            >
-              Summary
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <TextBlock text={chapter.a2_summary} />
-          </AccordionDetails>
-        </Accordion>
-
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: solarized.base1,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-              }}
-            >
-              Original
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <TextBlock text={chapter.raw_text} />
-          </AccordionDetails>
-        </Accordion>
-
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: solarized.base1,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-              }}
-            >
-              Normal Swedish
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <TextBlock text={chapter.swedish_text} />
-          </AccordionDetails>
-        </Accordion>
+        <Tabs
+          value={tab ?? false}
+          onChange={(_, v) => setTab(tab === v ? null : v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          textColor="inherit"
+          TabIndicatorProps={{
+            style: { background: solarized.yellow },
+          }}
+          sx={{
+            minHeight: 36,
+            "& .MuiTab-root": {
+              minHeight: 36,
+              fontSize: "0.7rem",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              color: solarized.base1,
+              padding: "6px 12px",
+            },
+            "& .Mui-selected": { color: solarized.yellow },
+          }}
+        >
+          {CHAPTER_TABS.map((t) => (
+            <Tab key={t.key} label={t.label} value={t.key} />
+          ))}
+        </Tabs>
+        {tab !== null && (
+          <Box sx={{ pt: 2 }}>
+            <TextBlock text={chapter[tab]} />
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -230,56 +221,59 @@ function BookListPage() {
   const progress = loadProgress();
 
   return (
-    <Container maxWidth="sm" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Swedish Books
-      </Typography>
-      <Divider sx={{ mb: 2 }} />
-      <List>
-        {Object.entries(bookMap).map(([bookId, book]) => {
-          const savedOrder = progress[bookId];
-          const savedChapter = savedOrder
-            ? book.chapters.find(
-                (ch) => String(ch.chapter_order) === savedOrder,
-              )
-            : null;
-          return (
-            <ListItem
-              key={bookId}
-              disablePadding
-              secondaryAction={
-                savedChapter ? (
-                  <Button
-                    component={Link}
-                    to={`/book/${bookId}/chapter/${savedOrder}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    Resume
-                  </Button>
-                ) : null
-              }
-            >
-              <ListItemButton
-                component={Link}
-                to={`/book/${bookId}`}
-                sx={{ pr: savedChapter ? 14 : 2 }}
+    <>
+      <LanguageSelector />
+      <Container maxWidth="sm" sx={{ py: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Swedish Books
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        <List>
+          {Object.entries(bookMap).map(([bookId, book]) => {
+            const savedOrder = progress[bookId];
+            const savedChapter = savedOrder
+              ? book.chapters.find(
+                  (ch) => String(ch.chapter_order) === savedOrder,
+                )
+              : null;
+            return (
+              <ListItem
+                key={bookId}
+                disablePadding
+                secondaryAction={
+                  savedChapter ? (
+                    <Button
+                      component={Link}
+                      to={`/book/${bookId}/chapter/${savedOrder}`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ whiteSpace: "nowrap" }}
+                    >
+                      Resume
+                    </Button>
+                  ) : null
+                }
               >
-                <ListItemText
-                  primary={book.title}
-                  secondary={
-                    savedChapter
-                      ? `Last: ${savedChapter.chapter_title || `Chapter ${savedChapter.chapter_order}`}`
-                      : `${book.chapters.length} chapters`
-                  }
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
-      </List>
-    </Container>
+                <ListItemButton
+                  component={Link}
+                  to={`/book/${bookId}`}
+                  sx={{ pr: savedChapter ? 14 : 2 }}
+                >
+                  <ListItemText
+                    primary={book.title}
+                    secondary={
+                      savedChapter
+                        ? `Last: ${savedChapter.chapter_title || `Chapter ${savedChapter.chapter_order}`}`
+                        : `${book.chapters.length} chapters`
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Container>
+    </>
   );
 }
 
@@ -406,21 +400,69 @@ function ChapterPage() {
   );
 }
 
-function App() {
+function LanguageSelector() {
+  const { mode, setMode } = useContext(LanguageContext);
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<BookListPage />} />
-          <Route path="/book/:bookId" element={<BookPage />} />
-          <Route
-            path="/book/:bookId/chapter/:chapterOrder"
-            element={<ChapterPage />}
-          />
-        </Routes>
-      </BrowserRouter>
-    </ThemeProvider>
+    <Box
+      sx={{
+        background: solarized.base2,
+        borderBottom: `1px solid ${solarized.base1}`,
+        px: 2,
+        py: 1,
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <FormControl size="small" sx={{ minWidth: 180 }}>
+        <InputLabel id="lang-select-label">Swedish mode</InputLabel>
+        <Select
+          labelId="lang-select-label"
+          value={mode}
+          label="Swedish mode"
+          onChange={(e) => setMode(e.target.value)}
+        >
+          <MenuItem value="easy">Easy Swedish (A2)</MenuItem>
+          <MenuItem value="normal">Normal Swedish</MenuItem>
+        </Select>
+      </FormControl>
+    </Box>
+  );
+}
+
+function App() {
+  const [mode, setMode] = useState(() => {
+    try {
+      return localStorage.getItem("langMode") || "easy";
+    } catch {
+      return "easy";
+    }
+  });
+
+  const handleSetMode = (value) => {
+    setMode(value);
+    try {
+      localStorage.setItem("langMode", value);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <LanguageContext.Provider value={{ mode, setMode: handleSetMode }}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<BookListPage />} />
+            <Route path="/book/:bookId" element={<BookPage />} />
+            <Route
+              path="/book/:bookId/chapter/:chapterOrder"
+              element={<ChapterPage />}
+            />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
+    </LanguageContext.Provider>
   );
 }
 
