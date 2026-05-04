@@ -233,7 +233,7 @@ function BookListPage() {
           Swedish Books
         </Typography>
         <Divider sx={{ mb: 2 }} />
-        <List>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {Object.entries(bookMap).map(([bookId, book]) => {
             const savedOrder = progress[bookId];
             const savedChapter = savedOrder
@@ -242,27 +242,22 @@ function BookListPage() {
                 )
               : null;
             return (
-              <ListItem
+              <Box
                 key={bookId}
-                disablePadding
-                secondaryAction={
-                  savedChapter ? (
-                    <Button
-                      component={Link}
-                      to={`/book/${bookId}/chapter/${savedOrder}`}
-                      size="small"
-                      variant="outlined"
-                      sx={{ whiteSpace: "nowrap" }}
-                    >
-                      Resume
-                    </Button>
-                  ) : null
-                }
+                sx={{
+                  borderRadius: 2,
+                  background: solarized.base3,
+                  boxShadow:
+                    "0 2px 8px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  overflow: "hidden",
+                }}
               >
                 <ListItemButton
                   component={Link}
                   to={`/book/${bookId}`}
-                  sx={{ pr: savedChapter ? 14 : 2 }}
+                  sx={{ flex: 1, py: 2, px: 3 }}
                 >
                   <ListItemText
                     primary={book.title}
@@ -273,10 +268,21 @@ function BookListPage() {
                     }
                   />
                 </ListItemButton>
-              </ListItem>
+                {savedChapter && (
+                  <Button
+                    component={Link}
+                    to={`/book/${bookId}/chapter/${savedOrder}`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ whiteSpace: "nowrap", mr: 2 }}
+                  >
+                    Resume
+                  </Button>
+                )}
+              </Box>
             );
           })}
-        </List>
+        </Box>
       </Container>
     </>
   );
