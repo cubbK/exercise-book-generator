@@ -51,7 +51,8 @@ const theme = createTheme({
     divider: solarized.base1,
   },
   typography: {
-    fontFamily: '"Inter", "Helvetica Neue", Arial, sans-serif',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     fontSize: 18,
     body1: { lineHeight: 1.85, fontSize: "1.1rem", color: solarized.base01 },
     h4: { color: solarized.base02, fontWeight: 700 },
@@ -106,7 +107,8 @@ function TextBlock({ text }) {
       component="pre"
       sx={{
         whiteSpace: "pre-wrap",
-        fontFamily: '"Inter", "Helvetica Neue", Arial, sans-serif',
+        fontFamily:
+          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         fontSize: "1.1rem",
         lineHeight: 1.85,
         color: solarized.base01,
@@ -141,10 +143,10 @@ function Chapter({ chapter }) {
     <Box
       sx={{
         mb: 4,
-        border: `1px solid ${solarized.base1}`,
         borderRadius: 2,
         p: 3,
         background: solarized.base3,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)",
       }}
     >
       <TextBlock text={mainText} />
