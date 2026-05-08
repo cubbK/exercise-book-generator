@@ -7,7 +7,6 @@ import {
   useParams,
   useNavigate,
 } from "react-router-dom";
-import booksData from "../books_extract.json";
 import {
   Box,
   Button,
@@ -17,7 +16,6 @@ import {
   FormControl,
   InputLabel,
   List,
-  ListItem,
   ListItemButton,
   ListItemText,
   MenuItem,
@@ -32,6 +30,13 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 const LanguageContext = createContext({ mode: "easy", setMode: () => {} });
+const BooksContext = createContext({ books: [], loading: true });
+
+async function apiFetch(path) {
+  const res = await fetch("/api" + path);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
 
 const solarized = {
   base3: "#FDF6E3",
@@ -188,24 +193,6 @@ function Chapter({ chapter }) {
   );
 }
 
-function buildBookMap() {
-  const bookMap = {};
-  for (const ch of booksData) {
-    if (!bookMap[ch.book_id]) {
-      bookMap[ch.book_id] = { title: ch.book_title, chapters: [] };
-    }
-    bookMap[ch.book_id].chapters.push(ch);
-  }
-  for (const book of Object.values(bookMap)) {
-    book.chapters.sort(
-      (a, b) => Number(a.chapter_order) - Number(b.chapter_order),
-    );
-  }
-  return bookMap;
-}
-
-const bookMap = buildBookMap();
-
 const PROGRESS_KEY = "bookProgress";
 
 function saveProgress(bookId, chapterOrder) {
@@ -223,7 +210,16 @@ function loadProgress() {
 }
 
 function BookListPage() {
+  const { books, loading } = useContext(BooksContext);
   const progress = loadProgress();
+
+  if (loading) {
+    return (
+      <Container maxWidth="sm" sx={{ py: 4 }}>
+        <Typography>Loading…</Typography>
+      </Container>
+    );
+  }
 
   return (
     <>
@@ -234,16 +230,11 @@ function BookListPage() {
         </Typography>
         <Divider sx={{ mb: 2 }} />
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {Object.entries(bookMap).map(([bookId, book]) => {
-            const savedOrder = progress[bookId];
-            const savedChapter = savedOrder
-              ? book.chapters.find(
-                  (ch) => String(ch.chapter_order) === savedOrder,
-                )
-              : null;
+          {books.map((book) => {
+            const savedOrder = progress[book.book_id];
             return (
               <Box
-                key={bookId}
+                key={book.book_id}
                 sx={{
                   borderRadius: 2,
                   background: solarized.base3,
@@ -256,22 +247,22 @@ function BookListPage() {
               >
                 <ListItemButton
                   component={Link}
-                  to={`/book/${bookId}`}
+                  to={`/book/${book.book_id}`}
                   sx={{ flex: 1, py: 2, px: 3 }}
                 >
                   <ListItemText
-                    primary={book.title}
+                    primary={book.book_title}
                     secondary={
-                      savedChapter
-                        ? `Last: ${savedChapter.chapter_title || `Chapter ${savedChapter.chapter_order}`}`
-                        : `${book.chapters.length} chapters`
+                      savedOrder
+                        ? `Last: Chapter ${savedOrder}`
+                        : `${book.chapter_count} chapters`
                     }
                   />
                 </ListItemButton>
-                {savedChapter && (
+                {savedOrder && (
                   <Button
                     component={Link}
-                    to={`/book/${bookId}/chapter/${savedOrder}`}
+                    to={`/book/${book.book_id}/chapter/${savedOrder}`}
                     size="small"
                     variant="outlined"
                     sx={{ whiteSpace: "nowrap", mr: 2 }}
@@ -290,9 +281,44 @@ function BookListPage() {
 
 function BookPage() {
   const { bookId } = useParams();
-  const book = bookMap[bookId];
+  const { books } = useContext(BooksContext);
+  const [state, setState] = useState({
+    forBookId: null,
+    chapters: [],
+    error: null,
+  });
 
-  if (!book) {
+  const book = books.find((b) => b.book_id === bookId);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/books/${bookId}/chapters`)
+      .then((data) => {
+        if (!cancelled)
+          setState({ forBookId: bookId, chapters: data, error: null });
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setState({ forBookId: bookId, chapters: [], error: err });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
+
+  const loading = state.forBookId !== bookId;
+  const chapters = loading ? [] : state.chapters;
+  const error = loading ? null : state.error;
+
+  if (loading) {
+    return (
+      <Container maxWidth="sm" sx={{ py: 4 }}>
+        <Typography>Loading…</Typography>
+      </Container>
+    );
+  }
+
+  if (error) {
     return (
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Typography>Book not found.</Typography>
@@ -311,19 +337,17 @@ function BookPage() {
         All Books
       </Button>
       <Typography variant="h4" gutterBottom>
-        {book.title}
+        {book?.book_title ?? bookId}
       </Typography>
       <Divider sx={{ mb: 2 }} />
       <List>
-        {book.chapters.map((ch) => (
+        {chapters.map((ch) => (
           <ListItemButton
             key={ch.chapter_id}
             component={Link}
             to={`/book/${bookId}/chapter/${ch.chapter_order}`}
           >
-            <ListItemText
-              primary={ch.chapter_title || `Chapter ${ch.chapter_order}`}
-            />
+            <ListItemText primary={`Chapter ${ch.chapter_order}`} />
           </ListItemButton>
         ))}
       </List>
@@ -334,16 +358,55 @@ function BookPage() {
 function ChapterPage() {
   const { bookId, chapterOrder } = useParams();
   const navigate = useNavigate();
-  const book = bookMap[bookId];
+  const { books } = useContext(BooksContext);
+  const [state, setState] = useState({
+    forKey: null,
+    chapters: [],
+    chapter: null,
+    error: null,
+  });
 
-  const idx = book
-    ? book.chapters.findIndex(
-        (ch) => String(ch.chapter_order) === String(chapterOrder),
-      )
-    : -1;
-  const chapter = book ? book.chapters[idx] : null;
-  const prev = book ? book.chapters[idx - 1] : null;
-  const next = book ? book.chapters[idx + 1] : null;
+  const book = books.find((b) => b.book_id === bookId);
+  const fetchKey = `${bookId}/${chapterOrder}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/books/${bookId}/chapters`)
+      .then(async (chs) => {
+        if (cancelled) return;
+        const found = chs.find(
+          (c) => String(c.chapter_order) === String(chapterOrder),
+        );
+        if (!found) throw new Error("Chapter not found");
+        const detail = await apiFetch(
+          `/books/${bookId}/chapters/${found.chapter_id}`,
+        );
+        if (!cancelled)
+          setState({
+            forKey: fetchKey,
+            chapters: chs,
+            chapter: detail,
+            error: null,
+          });
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setState({
+            forKey: fetchKey,
+            chapters: [],
+            chapter: null,
+            error: err,
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, chapterOrder, fetchKey]);
+
+  const loading = state.forKey !== fetchKey;
+  const chapters = loading ? [] : state.chapters;
+  const chapter = loading ? null : state.chapter;
+  const error = loading ? null : state.error;
 
   useEffect(() => {
     if (chapter) {
@@ -351,21 +414,27 @@ function ChapterPage() {
     }
   }, [bookId, chapterOrder, chapter]);
 
-  if (!book) {
+  if (loading) {
     return (
       <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Typography>Book not found.</Typography>
+        <Typography>Loading…</Typography>
       </Container>
     );
   }
 
-  if (!chapter) {
+  if (error || !chapter) {
     return (
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Typography>Chapter not found.</Typography>
       </Container>
     );
   }
+
+  const idx = chapters.findIndex(
+    (c) => String(c.chapter_order) === String(chapterOrder),
+  );
+  const prev = chapters[idx - 1] ?? null;
+  const next = chapters[idx + 1] ?? null;
 
   return (
     <Container maxWidth="sm" sx={{ py: 4 }}>
@@ -376,12 +445,12 @@ function ChapterPage() {
           to={`/book/${bookId}`}
           size="small"
         >
-          {book.title}
+          {book?.book_title ?? bookId}
         </Button>
       </Box>
 
       <Typography variant="h5" gutterBottom>
-        {chapter.chapter_title || `Chapter ${chapter.chapter_order}`}
+        {`Chapter ${chapterOrder}`}
       </Typography>
       <Divider sx={{ mb: 3 }} />
 
@@ -395,7 +464,7 @@ function ChapterPage() {
             prev && navigate(`/book/${bookId}/chapter/${prev.chapter_order}`)
           }
         >
-          {prev ? prev.chapter_title || `Chapter ${prev.chapter_order}` : ""}
+          {prev ? `Chapter ${prev.chapter_order}` : ""}
         </Button>
         <Button
           endIcon={<ArrowForwardIcon />}
@@ -404,7 +473,7 @@ function ChapterPage() {
             next && navigate(`/book/${bookId}/chapter/${next.chapter_order}`)
           }
         >
-          {next ? next.chapter_title || `Chapter ${next.chapter_order}` : ""}
+          {next ? `Chapter ${next.chapter_order}` : ""}
         </Button>
       </Box>
     </Container>
@@ -450,6 +519,16 @@ function App() {
     }
   });
 
+  const [books, setBooks] = useState([]);
+  const [booksLoading, setBooksLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch("/books")
+      .then(setBooks)
+      .catch(console.error)
+      .finally(() => setBooksLoading(false));
+  }, []);
+
   const handleSetMode = (value) => {
     setMode(value);
     try {
@@ -460,21 +539,23 @@ function App() {
   };
 
   return (
-    <LanguageContext.Provider value={{ mode, setMode: handleSetMode }}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<BookListPage />} />
-            <Route path="/book/:bookId" element={<BookPage />} />
-            <Route
-              path="/book/:bookId/chapter/:chapterOrder"
-              element={<ChapterPage />}
-            />
-          </Routes>
-        </BrowserRouter>
-      </ThemeProvider>
-    </LanguageContext.Provider>
+    <BooksContext.Provider value={{ books, loading: booksLoading }}>
+      <LanguageContext.Provider value={{ mode, setMode: handleSetMode }}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<BookListPage />} />
+              <Route path="/book/:bookId" element={<BookPage />} />
+              <Route
+                path="/book/:bookId/chapter/:chapterOrder"
+                element={<ChapterPage />}
+              />
+            </Routes>
+          </BrowserRouter>
+        </ThemeProvider>
+      </LanguageContext.Provider>
+    </BooksContext.Provider>
   );
 }
 

@@ -10,3 +10,6 @@ dagster:
 api:
 	cd $(API_DIR) && dotenvx run --env-file .env -- \
 		uv run fastapi dev main.py
+
+frontend:
+	cd frontend-swedish-books && npm run dev

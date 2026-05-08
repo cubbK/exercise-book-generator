@@ -6,8 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Forward /api/* to the FastAPI server during dev
-      "/api": "http://localhost:8000",
+      // Forward /api/* to the FastAPI server during dev, stripping the /api prefix
+      "/api": {
+        target: "http://localhost:8000",
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
     },
   },
 });
