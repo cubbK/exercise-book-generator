@@ -24,7 +24,7 @@ class ChapterEnriched(Base):
     """
 
     __tablename__ = "gold_chapter_enriched"
-    __table_args__ = {"schema": "gold"}  # PostgreSQL schema written by Dagster
+    __table_args__ = {"schema": "exercise_book_gold"}
 
     # --- keys ---
     chapter_id = Column(String, primary_key=True, nullable=False)
