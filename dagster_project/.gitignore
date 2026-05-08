@@ -135,7 +135,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
 .envrc
 .venv
 env/
@@ -209,3 +208,4 @@ __marimo__/
 
 .Ds_Store
 data/
+.env.keys

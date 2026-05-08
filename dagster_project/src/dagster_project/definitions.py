@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
 
-from dagster import Definitions, definitions, load_from_defs_folder
+from dagster import Definitions, EnvVar, definitions, load_from_defs_folder
 from dagster_dbt import DbtCliResource
 
 from dagster_project.defs.dbt import dbt_project
+from dagster_project.defs.postgres_sync import PostgresResource, sync_assets
 from dagster_project.resources.object_store import GCSObjectStoreResource
 from dagster_project.resources.storage import BigQueryStorage
 from dagster_project.resources.vertex_ai import VertexAIResource
@@ -31,14 +32,18 @@ def defs():
         project=os.environ["GCP_PROJECT"],
     )
 
+    postgres = PostgresResource(database_url=EnvVar("DATABASE_URL"))
+
     return Definitions.merge(
         loaded,
         Definitions(
+            assets=sync_assets,
             resources={
                 "storage": storage,
                 "gcs": gcs,
                 "dbt": dbt,
                 "vertex_ai": vertex_ai,
-            }
+                "postgres": postgres,
+            },
         ),
     )

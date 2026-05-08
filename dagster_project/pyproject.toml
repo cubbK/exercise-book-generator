@@ -29,6 +29,9 @@ dependencies = [
     "bigframes>=2.39.0",
     "ipykernel>=7.2.0",
     "bigquery-magics>=0.14.0",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "dagster-airbyte>=0.28.20",
 ]
 
 [dependency-groups]
