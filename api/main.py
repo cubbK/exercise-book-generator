@@ -9,17 +9,13 @@ Environment variables required:
 """
 
 import os
-
-from dotenv import load_dotenv
-
-load_dotenv()  # loads api/.env (or project-root .env) if present — must run before api.* imports
+from typing import Annotated
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import text
-from typing import Annotated
 
 from api.db import engine
 from api.routers import books
