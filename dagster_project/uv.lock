@@ -1594,6 +1594,19 @@ wheels = [
 ]
 
 [[package]]
+name = "dagster-airbyte"
+version = "0.28.20"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dagster" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/63/5f/cbd4ebd4d71b28eb2c6a1146f57b0781669b6a4b4edd7a47a1e0f2707257/dagster_airbyte-0.28.20.tar.gz", hash = "sha256:6504168e7ab404c8c415f57868f68158a21844b2fb626e714ebec416d864a3ec", size = 145637 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/fb/47f58503d927c66aae658582c80adafb6402327cd64f49bd5d2607408a5e/dagster_airbyte-0.28.20-py3-none-any.whl", hash = "sha256:9b4e6764b1853506321184c9a28915482e8286d012ea2006b9b91fd6f6bb3a0a", size = 116770 },
+]
+
+[[package]]
 name = "dagster-cloud-cli"
 version = "1.12.20"
 source = { registry = "https://pypi.org/simple" }
@@ -1749,6 +1762,7 @@ dependencies = [
     { name = "bigframes" },
     { name = "bigquery-magics" },
     { name = "dagster" },
+    { name = "dagster-airbyte" },
     { name = "dagster-dbt" },
     { name = "dagster-gcp" },
     { name = "db-dtypes" },
@@ -1787,6 +1801,7 @@ requires-dist = [
     { name = "bigframes", specifier = ">=2.39.0" },
     { name = "bigquery-magics", specifier = ">=0.14.0" },
     { name = "dagster", specifier = "==1.12.20" },
+    { name = "dagster-airbyte", specifier = ">=0.28.20" },
     { name = "dagster-dbt", specifier = ">=0.28.20" },
     { name = "dagster-gcp", specifier = ">=0.25.0" },
     { name = "db-dtypes", specifier = ">=1.0.0" },

@@ -1,0 +1,18 @@
+app = 'swedish-books-a2'
+primary_region = 'arn'
+
+[build]
+  dockerfile = "api/Dockerfile"
+  build_context = "."
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpus = 1

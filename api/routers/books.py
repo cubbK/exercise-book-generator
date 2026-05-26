@@ -1,4 +1,7 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 
@@ -8,9 +11,14 @@ from api.schemas import BookSummary, ChapterSummary, ChapterDetail
 
 router = APIRouter(prefix="/books", tags=["books"])
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 
 @router.get("", response_model=list[BookSummary])
-def list_books(db: Session = Depends(get_db)):
+def list_books(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+):
     """
     Return all books with chapter counts.
     Queries the gold_chapter_enriched table — one row per chapter —
@@ -35,7 +43,11 @@ def list_books(db: Session = Depends(get_db)):
 
 
 @router.get("/{book_id}/chapters", response_model=list[ChapterSummary])
-def list_chapters(book_id: str, db: Session = Depends(get_db)):
+def list_chapters(
+    book_id: str,
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+):
     """
     Return the table of contents for a book: chapter stubs in reading order.
     """
@@ -56,7 +68,12 @@ def list_chapters(book_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{book_id}/chapters/{chapter_id}", response_model=ChapterDetail)
-def get_chapter(book_id: str, chapter_id: str, db: Session = Depends(get_db)):
+def get_chapter(
+    book_id: str,
+    chapter_id: str,
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+):
     """
     Return a single chapter with all gold-layer text variants.
     """
