@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import booksData from "../books_extract.json";
 import {
   BrowserRouter,
   Routes,
@@ -31,12 +32,6 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 const LanguageContext = createContext({ mode: "easy", setMode: () => {} });
 const BooksContext = createContext({ books: [], loading: true });
-
-async function apiFetch(path) {
-  const res = await fetch("/api" + path);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
-}
 
 const solarized = {
   base3: "#FDF6E3",
@@ -282,49 +277,15 @@ function BookListPage() {
 function BookPage() {
   const { bookId } = useParams();
   const { books } = useContext(BooksContext);
-  const [state, setState] = useState({
-    forBookId: null,
-    chapters: [],
-    error: null,
-  });
 
   const book = books.find((b) => b.book_id === bookId);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/books/${bookId}/chapters`)
-      .then((data) => {
-        if (!cancelled)
-          setState({ forBookId: bookId, chapters: data, error: null });
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setState({ forBookId: bookId, chapters: [], error: err });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [bookId]);
-
-  const loading = state.forBookId !== bookId;
-  const chapters = loading ? [] : state.chapters;
-  const error = loading ? null : state.error;
-
-  if (loading) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Typography>Loading…</Typography>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Typography>Book not found.</Typography>
-      </Container>
-    );
-  }
+  const chapters = useMemo(
+    () =>
+      booksData
+        .filter((ch) => ch.book_id === bookId)
+        .map((ch) => ({ chapter_id: ch.chapter_id, chapter_order: ch.chapter_order })),
+    [bookId],
+  );
 
   return (
     <Container maxWidth="sm" sx={{ py: 4 }}>
@@ -359,54 +320,21 @@ function ChapterPage() {
   const { bookId, chapterOrder } = useParams();
   const navigate = useNavigate();
   const { books } = useContext(BooksContext);
-  const [state, setState] = useState({
-    forKey: null,
-    chapters: [],
-    chapter: null,
-    error: null,
-  });
 
   const book = books.find((b) => b.book_id === bookId);
-  const fetchKey = `${bookId}/${chapterOrder}`;
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/books/${bookId}/chapters`)
-      .then(async (chs) => {
-        if (cancelled) return;
-        const found = chs.find(
-          (c) => String(c.chapter_order) === String(chapterOrder),
-        );
-        if (!found) throw new Error("Chapter not found");
-        const detail = await apiFetch(
-          `/books/${bookId}/chapters/${found.chapter_id}`,
-        );
-        if (!cancelled)
-          setState({
-            forKey: fetchKey,
-            chapters: chs,
-            chapter: detail,
-            error: null,
-          });
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setState({
-            forKey: fetchKey,
-            chapters: [],
-            chapter: null,
-            error: err,
-          });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [bookId, chapterOrder, fetchKey]);
-
-  const loading = state.forKey !== fetchKey;
-  const chapters = loading ? [] : state.chapters;
-  const chapter = loading ? null : state.chapter;
-  const error = loading ? null : state.error;
+  const chapters = useMemo(
+    () =>
+      booksData
+        .filter((ch) => ch.book_id === bookId)
+        .map((ch) => ({ chapter_id: ch.chapter_id, chapter_order: ch.chapter_order })),
+    [bookId],
+  );
+  const chapter = useMemo(() => {
+    const found = chapters.find((c) => String(c.chapter_order) === String(chapterOrder));
+    if (!found) return null;
+    return booksData.find((ch) => ch.chapter_id === found.chapter_id) ?? null;
+  }, [chapters, chapterOrder]);
 
   useEffect(() => {
     if (chapter) {
@@ -414,15 +342,7 @@ function ChapterPage() {
     }
   }, [bookId, chapterOrder, chapter]);
 
-  if (loading) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Typography>Loading…</Typography>
-      </Container>
-    );
-  }
-
-  if (error || !chapter) {
+  if (!chapter) {
     return (
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Typography>Chapter not found.</Typography>
@@ -519,15 +439,17 @@ function App() {
     }
   });
 
-  const [books, setBooks] = useState([]);
-  const [booksLoading, setBooksLoading] = useState(true);
-
-  useEffect(() => {
-    apiFetch("/books")
-      .then(setBooks)
-      .catch(console.error)
-      .finally(() => setBooksLoading(false));
-  }, []);
+  const [books] = useState(() => {
+    const map = {};
+    for (const ch of booksData) {
+      if (!map[ch.book_id]) {
+        map[ch.book_id] = { book_id: ch.book_id, book_title: ch.book_title, chapter_count: 0 };
+      }
+      map[ch.book_id].chapter_count++;
+    }
+    return Object.values(map);
+  });
+  const booksLoading = false;
 
   const handleSetMode = (value) => {
     setMode(value);
