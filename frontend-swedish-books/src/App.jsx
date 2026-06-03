@@ -283,7 +283,10 @@ function BookPage() {
     () =>
       booksData
         .filter((ch) => ch.book_id === bookId)
-        .map((ch) => ({ chapter_id: ch.chapter_id, chapter_order: ch.chapter_order })),
+        .map((ch) => ({
+          chapter_id: ch.chapter_id,
+          chapter_order: ch.chapter_order,
+        })),
     [bookId],
   );
 
@@ -327,11 +330,16 @@ function ChapterPage() {
     () =>
       booksData
         .filter((ch) => ch.book_id === bookId)
-        .map((ch) => ({ chapter_id: ch.chapter_id, chapter_order: ch.chapter_order })),
+        .map((ch) => ({
+          chapter_id: ch.chapter_id,
+          chapter_order: ch.chapter_order,
+        })),
     [bookId],
   );
   const chapter = useMemo(() => {
-    const found = chapters.find((c) => String(c.chapter_order) === String(chapterOrder));
+    const found = chapters.find(
+      (c) => String(c.chapter_order) === String(chapterOrder),
+    );
     if (!found) return null;
     return booksData.find((ch) => ch.chapter_id === found.chapter_id) ?? null;
   }, [chapters, chapterOrder]);
@@ -443,7 +451,11 @@ function App() {
     const map = {};
     for (const ch of booksData) {
       if (!map[ch.book_id]) {
-        map[ch.book_id] = { book_id: ch.book_id, book_title: ch.book_title, chapter_count: 0 };
+        map[ch.book_id] = {
+          book_id: ch.book_id,
+          book_title: ch.book_title,
+          chapter_count: 0,
+        };
       }
       map[ch.book_id].chapter_count++;
     }
